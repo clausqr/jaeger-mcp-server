@@ -140,7 +140,3 @@ dist
 
 # Node version for nvm (local)
 .nvmrc
-
-# Local dependency choices (optional)
-package.json
-package-lock.json
