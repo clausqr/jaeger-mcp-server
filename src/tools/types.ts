@@ -1,10 +1,11 @@
 import { JaegerClient } from '../client';
 
-import { z, ZodRawShape, ZodTypeAny } from 'zod';
+import { ZodRawShape } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 export type ToolParamsSchema = ZodRawShape;
-export type ToolInput = z.objectOutputType<ZodRawShape, ZodTypeAny>;
+/** Parsed tool arguments (output of params schema). Portable across Zod v3/v4. */
+export type ToolInput = Record<string, unknown>;
 export type ToolOutput = string;
 
 export interface Tool {
