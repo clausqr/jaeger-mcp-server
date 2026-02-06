@@ -69,12 +69,13 @@ export class JaegerGrpcClient implements JaegerClient {
         );
     }
 
+    /** Strips scheme (http(s)://) and trailing slashes. Does not strip port. */
     private static _normalizeUrl(url: string): string {
         const schemaIdx: number = url.indexOf(URL_SCHEMA_SEPARATOR);
         if (schemaIdx >= 0) {
             url = url.substring(schemaIdx + URL_SCHEMA_SEPARATOR.length);
         }
-        return url;
+        return url.replace(/\/+$/, '');
     }
 
     private static _isSecureUrl(url: string, port: number): boolean {
@@ -94,7 +95,11 @@ export class JaegerGrpcClient implements JaegerClient {
     ): QueryService {
         const normalizedUrl: string = JaegerGrpcClient._normalizeUrl(url);
         const isSecureUrl: boolean = JaegerGrpcClient._isSecureUrl(url, port);
-        const serverUrl: string = `${normalizedUrl}:${port}`;
+        // Use URL as-is if it already has a port (host:port); otherwise append configured port.
+        const hasPort = /:\d+$/.test(normalizedUrl);
+        const serverUrl: string = hasPort
+            ? normalizedUrl
+            : `${normalizedUrl}:${port}`;
         const Client: grpc.ServiceClientConstructor =
             grpc.makeGenericClientConstructor({}, GRPC_SERVICE_NAME);
         const client: grpc.Client = new Client(
@@ -185,7 +190,7 @@ export class JaegerGrpcClient implements JaegerClient {
         return {
             attributes:
                 r.attributes && r.attributes.length
-                    ? r.attributes.map((kv) => this._toAttribute(kv))
+                    ? r.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
                     : undefined,
             droppedAttributesCount: r.droppedAttributesCount || undefined,
         } as Resource;
@@ -199,7 +204,7 @@ export class JaegerGrpcClient implements JaegerClient {
             version: is.version || undefined,
             attributes:
                 is.attributes && is.attributes.length
-                    ? is.attributes.map((kv) => this._toAttribute(kv))
+                    ? is.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
                     : undefined,
             droppedAttributesCount: is.droppedAttributesCount || undefined,
         } as InstrumentationScope;
@@ -230,7 +235,7 @@ export class JaegerGrpcClient implements JaegerClient {
             timeUnixNano: this._toTimeUnixNanoString(e.timeUnixNano),
             attributes:
                 e.attributes && e.attributes.length
-                    ? e.attributes.map((kv) => this._toAttribute(kv))
+                    ? e.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
                     : undefined,
             droppedAttributesCount: e.droppedAttributesCount || undefined,
         } as Event;
@@ -243,7 +248,7 @@ export class JaegerGrpcClient implements JaegerClient {
             traceState: l.traceState || undefined,
             attributes:
                 l.attributes && l.attributes.length
-                    ? l.attributes.map((kv) => this._toAttribute(kv))
+                    ? l.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
                     : undefined,
             droppedAttributesCount: l.droppedAttributesCount || undefined,
         } as Link;
@@ -270,17 +275,17 @@ export class JaegerGrpcClient implements JaegerClient {
             endTimeUnixNano: this._toTimeUnixNanoString(s.endTimeUnixNano),
             attributes:
                 s.attributes && s.attributes.length
-                    ? s.attributes.map((kv) => this._toAttribute(kv))
+                    ? s.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
                     : undefined,
             droppedAttributesCount: s.droppedAttributesCount || undefined,
             events:
                 s.events && s.events.length
-                    ? s.events?.map((e) => this._toEvent(e))
+                    ? s.events?.map((e: IEvent) => this._toEvent(e))
                     : undefined,
             droppedEventsCount: s.droppedEventsCount || undefined,
             links:
                 s.links && s.links.length
-                    ? s.links?.map((l) => this._toLink(l))
+                    ? s.links?.map((l: ILink) => this._toLink(l))
                     : undefined,
             droppedLinksCount: s.droppedLinksCount || undefined,
             status: this._toStatus(s.status),
@@ -290,7 +295,7 @@ export class JaegerGrpcClient implements JaegerClient {
     private _toScopeSpans(ss: IScopeSpans): ScopeSpans {
         return {
             scope: this._toInstrumentationScope(ss.scope!),
-            spans: ss.spans!.map((s) => this._toSpan(s)),
+            spans: ss.spans!.map((s: ISpan) => this._toSpan(s)),
             schemaUrl: ss.schemaUrl || undefined,
         } as ScopeSpans;
     }
@@ -298,7 +303,7 @@ export class JaegerGrpcClient implements JaegerClient {
     private _toResourceSpans(rs: IResourceSpans): ResourceSpans {
         return {
             resource: this._toResource(rs.resource!),
-            scopeSpans: rs.scopeSpans!.map((ss) => this._toScopeSpans(ss)),
+            scopeSpans: rs.scopeSpans!.map((ss: IScopeSpans) => this._toScopeSpans(ss)),
             schemaUrl: rs.schemaUrl || undefined,
         } as ResourceSpans;
     }
@@ -336,7 +341,7 @@ export class JaegerGrpcClient implements JaegerClient {
             const grpcResponse: IGetOperationsResponse =
                 await this.queryService.getOperations(grpcRequest);
             return {
-                operations: grpcResponse.operations?.map((op) =>
+                operations: grpcResponse.operations?.map((op: IOperation) =>
                     this._toOperation(op)
                 ),
             } as GetOperationsResponse;
@@ -356,7 +361,7 @@ export class JaegerGrpcClient implements JaegerClient {
             const grpcResponse: TracesData =
                 await this.queryService.getTrace(grpcRequest);
             return {
-                resourceSpans: grpcResponse.resourceSpans?.map((rs) =>
+                resourceSpans: grpcResponse.resourceSpans?.map((rs: IResourceSpans) =>
                     this._toResourceSpans(rs)
                 ),
             } as GetTraceResponse;
@@ -383,7 +388,7 @@ export class JaegerGrpcClient implements JaegerClient {
             const grpcResponse: TracesData =
                 await this.queryService.findTraces(grpcRequest);
             return {
-                resourceSpans: grpcResponse.resourceSpans?.map((rs) =>
+                resourceSpans: grpcResponse.resourceSpans?.map((rs: IResourceSpans) =>
                     this._toResourceSpans(rs)
                 ),
             } as FindTracesResponse;

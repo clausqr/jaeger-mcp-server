@@ -18,7 +18,7 @@ function _createJaegerClient(): JaegerClient {
     return createClient({
         url: process.env.JAEGER_URL!,
         port: process.env.JAEGER_PORT
-            ? parseInt(process.env.JAEGER_PORT)
+            ? parseInt(process.env.JAEGER_PORT, 10)
             : undefined,
         authorizationHeader: process.env.JAEGER_AUTHORIZATION_HEADER,
     });
@@ -76,4 +76,11 @@ export async function startServer(): Promise<void> {
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
+
+    // Keep process alive until stdin closes (client disconnect) or process is killed.
+    await new Promise<void>((resolve) => {
+        const onEnd = () => resolve();
+        process.stdin.once('end', onEnd);
+        process.stdin.once('close', onEnd);
+    });
 }

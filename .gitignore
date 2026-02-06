@@ -134,3 +134,13 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Cursor project MCP config (local)
+.cursor/
+
+# Node version for nvm (local)
+.nvmrc
+
+# Local dependency choices (optional)
+package.json
+package-lock.json

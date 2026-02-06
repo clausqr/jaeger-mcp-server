@@ -45,6 +45,33 @@ like VS Code, Claude, Cursor, Windsurf Github Copilot via the `jaeger-mcp-server
 }
 ```
 
+### Cursor (this project)
+Use `.cursor/mcp.json` in this repo; it runs the local build and reads `JAEGER_URL` from `.env` or the config.
+
+### Cursor (other projects or global)
+To use from **any other project**, add the server to **global** MCP config so it’s available everywhere:
+
+1. Open or create `~/.cursor/mcp.json`.
+2. Add a `jaeger` entry under `mcpServers` (merge with existing servers if needed):
+
+```json
+{
+  "mcpServers": {
+    "jaeger": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "jaeger-mcp-server"],
+      "env": {
+        "JAEGER_URL": "http://localhost:16686"
+      }
+    }
+  }
+}
+```
+
+Set `JAEGER_URL` to your Jaeger API URL (HTTP or gRPC). Reload MCP in Cursor (Settings → Features → MCP, or Command Palette → MCP) and the Jaeger tools will show in chat.
+
+Alternatively, in **another project** only, create that project’s `.cursor/mcp.json` with the same `jaeger` block above.
 
 ## Configuration
 
@@ -54,6 +81,8 @@ like VS Code, Claude, Cursor, Windsurf Github Copilot via the `jaeger-mcp-server
 - `JAEGER_PORT`: HTTP or gRPC API port of the Jaeger instance to access. The default value is `16685` for the gRPC API and `16686` for the HTTP API.
 - `JAEGER_AUTHORIZATION_HEADER`: `Authorization` HTTP header to be added into the requests for querying traces over Jaeger API (for ex. `Basic <Basic Auth Header>`)
 - `JAEGER_PROTOCOL`: API protocol of the Jaeger instance to access. Valid values are `GRPC` and `HTTP`. The default value is `GRPC`. Valid
+
+**Non-standard port (e.g. in Cursor MCP config):** Prefer putting the port in `JAEGER_URL` (e.g. `http://localhost:16764`). Alternatively set `JAEGER_URL` to the host and `JAEGER_PORT` to the port number.
 
 ## Components
 
