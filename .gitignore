@@ -140,3 +140,5 @@ dist
 
 # Node version for nvm (local)
 .nvmrc
+src/generated/root.d.ts
+src/generated/root.js
