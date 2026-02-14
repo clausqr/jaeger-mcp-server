@@ -4,9 +4,12 @@ const BANNER_TEXT = '[JAEGER-MCP-SERVER]';
 const BANNER_BG_COLOR = '#628816';
 const BANNER_TEXT_COLOR = '#5ECAE0';
 
-const DISABLED = true;
+/** When true, no log output. Set to false if JAEGER_DEBUG=1 or DEBUG is set. */
+const DISABLED =
+    process.env.JAEGER_DEBUG !== '1' && process.env.DEBUG === undefined;
 
-let debugEnabled = false;
+let debugEnabled =
+    process.env.JAEGER_DEBUG === '1' || process.env.DEBUG !== undefined;
 
 function _timeAsString(): string {
     const date: Date = new Date();
