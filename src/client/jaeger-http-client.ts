@@ -220,8 +220,12 @@ export class JaegerHttpClient implements JaegerClient {
             const httpResponse: any = await this._get('/api/v3/traces', {
                 'query.service_name': request.query.serviceName,
                 'query.operation_name': request.query.operationName,
-                'query.start_time_min': request.query.startTimeMin,
-                'query.start_time_max': request.query.startTimeMax,
+                'query.start_time_min': this._toDateTimeString(
+                    request.query.startTimeMin
+                ),
+                'query.start_time_max': this._toDateTimeString(
+                    request.query.startTimeMax
+                ),
                 'query.duration_min': this._toDurationUnit(
                     request.query.durationMin
                 ),
