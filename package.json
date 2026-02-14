@@ -22,6 +22,8 @@
   ],
   "scripts": {
     "build": "npm run protos && tsc",
+    "get-trace": "node scripts/get-trace.js",
+    "find-traces": "node scripts/find-traces.js",
     "protos": " npm run protos:generate",
     "protos:generate": "node ./scripts/generate-protos.js",
     "start": "ts-node ./src/index.ts",
