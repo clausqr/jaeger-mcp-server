@@ -80,9 +80,57 @@ Alternatively, in **another project** only, create that project’s `.cursor/mcp
 - `JAEGER_URL`: HTTP API (`HTTP JSON` (`/api/v3/*`)) or the gRPC API (`gRPC/Protobuf` (`jaeger.api_v3.QueryService`)) URL of the Jaeger instance to access.
 - `JAEGER_PORT`: HTTP or gRPC API port of the Jaeger instance to access. The default value is `16685` for the gRPC API and `16686` for the HTTP API.
 - `JAEGER_AUTHORIZATION_HEADER`: `Authorization` HTTP header to be added into the requests for querying traces over Jaeger API (for ex. `Basic <Basic Auth Header>`)
-- `JAEGER_PROTOCOL`: API protocol of the Jaeger instance to access. Valid values are `GRPC` and `HTTP`. The default value is `GRPC`. Valid
+- `JAEGER_PROTOCOL`: API protocol of the Jaeger instance to access. Valid values are `GRPC` and `HTTP`. The default value is `GRPC`.
+- `JAEGER_REQUEST_TIMEOUT_MS`: Request timeout in milliseconds for API calls (e.g. `find-traces`). Prevents indefinite stalls when the backend is slow or the query range is large. Default `60000`. Override with a smaller value (e.g. `30000`) or larger if needed.
 
 **Non-standard port (e.g. in Cursor MCP config):** Prefer putting the port in `JAEGER_URL` (e.g. `http://localhost:16764`). Alternatively set `JAEGER_URL` to the host and `JAEGER_PORT` to the port number.
+
+### Debug output
+
+To see server logs (e.g. why find-traces hangs or times out):
+
+1. **In Cursor:** Open **Output** (View → Output or `Ctrl+Shift+U` / `Cmd+Shift+U`), then in the dropdown choose **MCP** or the channel for your Jaeger server. You’ll see stdout/stderr from the MCP process.
+2. **Enable logging:** Set `JAEGER_DEBUG=1` in the MCP server env (e.g. in `.cursor/mcp.json` under `env` or in `.env`). Then restart MCP (reload Cursor’s MCP). You’ll get `[JAEGER-MCP-SERVER]` lines and, for find-traces, “find-traces start” / “find-traces end” or “find-traces error”.
+3. **Run from terminal (no MCP):** Use the scripts so logs go to your terminal:
+   - `npm run build && JAEGER_DEBUG=1 JAEGER_URL=... node dist/index.js` (then trigger the tool from Cursor), or
+   - `npm run find-traces` to run a simple find-traces call and see timing/errors in the terminal.
+
+### Simpler find-traces (avoid hanging)
+
+Large time ranges (e.g. 2+ days) and high `searchDepth` can make the backend slow or hit timeouts. Prefer:
+
+- **Narrow time window:** e.g. last 1 hour: `startTimeMin` / `startTimeMax` as RFC 3339 (e.g. `2026-02-14T12:00:00Z` and `2026-02-14T13:00:00Z`).
+- **Lower searchDepth:** e.g. `10` instead of `100`.
+
+Example (1-hour window, depth 10):
+
+```json
+{
+  "serviceName": "webui-dashboard",
+  "startTimeMin": "2026-02-14T12:00:00Z",
+  "startTimeMax": "2026-02-14T13:00:00Z",
+  "searchDepth": 10
+}
+```
+
+Or run from the repo: `npm run build && JAEGER_URL=... npm run find-traces -- webui-dashboard` (uses last 1 hour and searchDepth 10; output and timing go to stderr).
+
+### Verifying connectivity (get-trace script)
+
+After building, you can verify that the server can reach Jaeger and fetch a trace by ID:
+
+```bash
+npm run build
+JAEGER_URL=http://localhost:16686 npm run get-trace -- 014c2d3d2f2bc95b145834e7c6063744
+```
+
+Or with a `.env` that sets `JAEGER_URL`:
+
+```bash
+npm run build && node scripts/get-trace.js 014c2d3d2f2bc95b145834e7c6063744
+```
+
+The script uses the same client as the MCP server. Optional env: `JAEGER_PROTOCOL` (e.g. `HTTP` if your URL is the Jaeger UI/HTTP API), `JAEGER_PORT`, `JAEGER_AUTHORIZATION_HEADER`.
 
 ## Components
 

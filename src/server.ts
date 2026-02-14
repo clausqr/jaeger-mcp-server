@@ -15,12 +15,16 @@ function _createJaegerClient(): JaegerClient {
             'No Jaeger URL (by "JAEGER_URL" environment variable) is specified'
         );
     }
+    const requestTimeoutMs = process.env.JAEGER_REQUEST_TIMEOUT_MS
+        ? parseInt(process.env.JAEGER_REQUEST_TIMEOUT_MS, 10)
+        : undefined;
     return createClient({
         url: process.env.JAEGER_URL!,
         port: process.env.JAEGER_PORT
             ? parseInt(process.env.JAEGER_PORT, 10)
             : undefined,
         authorizationHeader: process.env.JAEGER_AUTHORIZATION_HEADER,
+        requestTimeoutMs,
     });
 }
 
@@ -44,16 +48,33 @@ export async function startServer(): Promise<void> {
     const createToolCallback = (tool: Tool) => {
         return async (args: ToolInput): Promise<CallToolResult> => {
             try {
+                if (tool.name() === 'find-traces' && logger.isDebugEnabled()) {
+                    logger.debug(
+                        `find-traces start`,
+                        logger.toJson({
+                            serviceName: args.serviceName,
+                            startTimeMin: args.startTimeMin,
+                            startTimeMax: args.startTimeMax,
+                            searchDepth: args.searchDepth,
+                        })
+                    );
+                }
                 const response = await tool.handle(
                     server.server,
                     jaegerClient,
                     args
                 );
+                if (tool.name() === 'find-traces' && logger.isDebugEnabled()) {
+                    logger.debug('find-traces end');
+                }
                 return {
                     content: [{ type: 'text', text: response }],
                     isError: false,
                 };
             } catch (error: any) {
+                if (tool.name() === 'find-traces' && logger.isDebugEnabled()) {
+                    logger.debug('find-traces error', error.message);
+                }
                 return {
                     content: [
                         { type: 'text', text: `Error: ${error.message}` },

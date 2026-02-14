@@ -20,7 +20,12 @@ import {
     toSpanKind,
     toStatusCode,
 } from '../domain';
-import { ClientConfigurations, JaegerClient } from './types';
+import {
+    ClientConfigurations,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+    JaegerClient,
+} from './types';
+import * as logger from '../logger';
 import { google, jaeger, opentelemetry } from '../generated/root';
 
 import Long from 'long';
@@ -58,14 +63,20 @@ const SECURE_URL_PORT: number = 443;
 export class JaegerGrpcClient implements JaegerClient {
     private readonly queryService: QueryService;
     private readonly metadata: grpc.Metadata;
+    private readonly requestTimeoutMs: number;
 
     constructor(clientConfigurations: ClientConfigurations) {
+        this.requestTimeoutMs =
+            clientConfigurations.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+        const metadata = JaegerGrpcClient._createMetadata(
+            clientConfigurations.authorizationHeader
+        );
+        this.metadata = metadata;
         this.queryService = JaegerGrpcClient._createQueryService(
             clientConfigurations.url,
-            clientConfigurations.port || DEFAULT_PORT
-        );
-        this.metadata = JaegerGrpcClient._createMetadata(
-            clientConfigurations.authorizationHeader
+            clientConfigurations.port || DEFAULT_PORT,
+            metadata,
+            this.requestTimeoutMs
         );
     }
 
@@ -91,11 +102,12 @@ export class JaegerGrpcClient implements JaegerClient {
 
     private static _createQueryService(
         url: string,
-        port: number
+        port: number,
+        metadata: grpc.Metadata,
+        requestTimeoutMs: number
     ): QueryService {
         const normalizedUrl: string = JaegerGrpcClient._normalizeUrl(url);
         const isSecureUrl: boolean = JaegerGrpcClient._isSecureUrl(url, port);
-        // Use URL as-is if it already has a port (host:port); otherwise append configured port.
         const hasPort = /:\d+$/.test(normalizedUrl);
         const serverUrl: string = hasPort
             ? normalizedUrl
@@ -110,18 +122,60 @@ export class JaegerGrpcClient implements JaegerClient {
                   )
                 : grpc.credentials.createInsecure()
         );
-        return QueryService.create(JaegerGrpcClient._createRpcImpl(client));
+        return QueryService.create(
+            JaegerGrpcClient._createRpcImpl(client, metadata, requestTimeoutMs)
+        );
     }
 
+    /**
+     * RPC impl: uses server-stream for FindTraces/GetTrace (proto returns stream TracesData),
+     * unary for the rest. Stream chunks are decoded with TracesData.decode; merged result
+     * is passed as a TracesData instance so protobufjs does not try to decode it again.
+     */
     private static _createRpcImpl(
-        client: grpc.Client
+        client: grpc.Client,
+        metadata: grpc.Metadata,
+        requestTimeoutMs: number
     ): (method: any, requestData: any, callback: any) => void {
+        const methodPath = (name: string) => `/${GRPC_SERVICE_NAME}/${name}`;
+        const passThrough = (arg: any) => arg;
+        const STREAMING_METHODS = new Set(['FindTraces', 'GetTrace']);
+
+        const deserializeTracesData = (buf: Buffer): TracesData =>
+            TracesData.decode(buf);
+
         return (method: any, requestData: any, callback: any) => {
+            const deadline = new Date(Date.now() + requestTimeoutMs);
+            const path = methodPath(method.name);
+
+            if (STREAMING_METHODS.has(method.name)) {
+                const stream = client.makeServerStreamRequest(
+                    path,
+                    passThrough,
+                    deserializeTracesData,
+                    requestData,
+                    metadata,
+                    { deadline }
+                );
+                const chunks: TracesData[] = [];
+                stream.on('data', (data: TracesData) => chunks.push(data));
+                stream.on('end', () => {
+                    const resourceSpans = chunks.flatMap(
+                        (c) => c.resourceSpans || []
+                    );
+                    callback(null, TracesData.create({ resourceSpans }));
+                });
+                stream.on('error', (err: any) => callback(err));
+                return;
+            }
+
             client.makeUnaryRequest(
-                `/${GRPC_SERVICE_NAME}/${method.name}`,
-                (arg: any) => arg,
-                (arg: any) => arg,
+                path,
+                passThrough,
+                passThrough,
                 requestData,
+                metadata,
+                { deadline },
                 callback
             );
         };
@@ -204,7 +258,9 @@ export class JaegerGrpcClient implements JaegerClient {
             version: is.version || undefined,
             attributes:
                 is.attributes && is.attributes.length
-                    ? is.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
+                    ? is.attributes.map((kv: IKeyValue) =>
+                          this._toAttribute(kv)
+                      )
                     : undefined,
             droppedAttributesCount: is.droppedAttributesCount || undefined,
         } as InstrumentationScope;
@@ -303,7 +359,9 @@ export class JaegerGrpcClient implements JaegerClient {
     private _toResourceSpans(rs: IResourceSpans): ResourceSpans {
         return {
             resource: this._toResource(rs.resource!),
-            scopeSpans: rs.scopeSpans!.map((ss: IScopeSpans) => this._toScopeSpans(ss)),
+            scopeSpans: rs.scopeSpans!.map((ss: IScopeSpans) =>
+                this._toScopeSpans(ss)
+            ),
             schemaUrl: rs.schemaUrl || undefined,
         } as ResourceSpans;
     }
@@ -361,8 +419,8 @@ export class JaegerGrpcClient implements JaegerClient {
             const grpcResponse: TracesData =
                 await this.queryService.getTrace(grpcRequest);
             return {
-                resourceSpans: grpcResponse.resourceSpans?.map((rs: IResourceSpans) =>
-                    this._toResourceSpans(rs)
+                resourceSpans: grpcResponse.resourceSpans?.map(
+                    (rs: IResourceSpans) => this._toResourceSpans(rs)
                 ),
             } as GetTraceResponse;
         } catch (err: any) {
@@ -371,6 +429,7 @@ export class JaegerGrpcClient implements JaegerClient {
     }
 
     async findTraces(request: FindTracesRequest): Promise<FindTracesResponse> {
+        const t0 = Date.now();
         try {
             const grpcRequest: IFindTracesRequest = {
                 query: {
@@ -385,14 +444,49 @@ export class JaegerGrpcClient implements JaegerClient {
                     rawTraces: request.query.rawTraces,
                 },
             };
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    '[gRPC] findTraces request',
+                    logger.toJson({
+                        serviceName: request.query.serviceName,
+                        operationName: request.query.operationName,
+                        startTimeMin: request.query.startTimeMin,
+                        startTimeMinISO: request.query.startTimeMin
+                            ? new Date(request.query.startTimeMin).toISOString()
+                            : undefined,
+                        startTimeMax: request.query.startTimeMax,
+                        startTimeMaxISO: request.query.startTimeMax
+                            ? new Date(request.query.startTimeMax).toISOString()
+                            : undefined,
+                        searchDepth: request.query.searchDepth,
+                        durationMin: request.query.durationMin,
+                        durationMax: request.query.durationMax,
+                    })
+                );
+            }
             const grpcResponse: TracesData =
                 await this.queryService.findTraces(grpcRequest);
+            const count = grpcResponse.resourceSpans?.length ?? 0;
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    `[gRPC] findTraces response in ${Date.now() - t0}ms`,
+                    'resourceSpans.length=',
+                    count
+                );
+            }
             return {
-                resourceSpans: grpcResponse.resourceSpans?.map((rs: IResourceSpans) =>
-                    this._toResourceSpans(rs)
+                resourceSpans: grpcResponse.resourceSpans?.map(
+                    (rs: IResourceSpans) => this._toResourceSpans(rs)
                 ),
             } as FindTracesResponse;
         } catch (err: any) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    `[gRPC] findTraces error after ${Date.now() - t0}ms`,
+                    err?.code ?? err?.name,
+                    err?.message
+                );
+            }
             return this._handleError(err);
         }
     }

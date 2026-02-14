@@ -9,8 +9,13 @@ import {
     GetTraceResponse,
     toSpanKind,
 } from '../domain';
-import { ClientConfigurations, JaegerClient } from './types';
+import {
+    ClientConfigurations,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+    JaegerClient,
+} from './types';
 
+import * as logger from '../logger';
 import axios, { AxiosResponse } from 'axios';
 
 const DEFAULT_PORT = 16686;
@@ -24,43 +29,56 @@ export class JaegerHttpClient implements JaegerClient {
     private readonly url: string;
     private readonly port: number;
     private readonly authorizationHeader: string | undefined;
+    private readonly requestTimeoutMs: number;
+
+    private readonly baseUrl: string;
 
     constructor(clientConfigurations: ClientConfigurations) {
-        this.url = JaegerHttpClient._normalizeUrl(clientConfigurations.url);
-        this.port = JaegerHttpClient._normalizePort(
-            this.url,
+        const { url: baseUrl, port } = JaegerHttpClient._parseUrlAndPort(
+            clientConfigurations.url,
             clientConfigurations.port
         );
+        this.url = baseUrl;
+        this.port = port;
+        this.baseUrl = port != null ? `${baseUrl}:${port}` : baseUrl;
         this.authorizationHeader = clientConfigurations.authorizationHeader;
+        this.requestTimeoutMs =
+            clientConfigurations.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     }
 
-    private static _normalizeUrl(url: string, port?: number): string {
-        const schemaIdx: number = url.indexOf(URL_SCHEMA_SEPARATOR);
+    /** Returns base URL (no port) and port. If URL has :port, it is stripped and returned; otherwise port from config or default. */
+    private static _parseUrlAndPort(
+        url: string,
+        configPort?: number
+    ): { url: string; port: number } {
+        const schemaIdx = url.indexOf(URL_SCHEMA_SEPARATOR);
         if (schemaIdx < 0) {
-            if (port === SECURE_URL_PORT) {
-                url = `${SECURE_URL_SCHEMA}${url}`;
-            } else {
-                url = `${INSECURE_URL_SCHEMA}${url}`;
-            }
+            url =
+                configPort === SECURE_URL_PORT
+                    ? `${SECURE_URL_SCHEMA}${url}`
+                    : `${INSECURE_URL_SCHEMA}${url}`;
         }
-        return url;
-    }
-
-    private static _normalizePort(
-        normalizedUrl: string,
-        port?: number
-    ): number {
-        if (normalizedUrl.startsWith(SECURE_URL_SCHEMA)) {
-            return port || SECURE_URL_PORT;
+        const match = url.match(/^(.+):(\d+)$/);
+        if (match) {
+            return {
+                url: match[1],
+                port: parseInt(match[2], 10),
+            };
         }
-        return port || DEFAULT_PORT;
+        const port =
+            configPort ??
+            (url.startsWith(SECURE_URL_SCHEMA)
+                ? SECURE_URL_PORT
+                : DEFAULT_PORT);
+        return { url, port };
     }
 
     private async _get<R>(path: string, params?: any): Promise<R> {
         const response: AxiosResponse = await axios.get(
-            `${this.url}:${this.port}/${path}`,
+            `${this.baseUrl}/${path}`.replace(/([^:])\/\/+/, '$1/'),
             {
                 params,
+                timeout: this.requestTimeoutMs,
                 headers: {
                     Authorization: this.authorizationHeader,
                 },
@@ -216,26 +234,52 @@ export class JaegerHttpClient implements JaegerClient {
     }
 
     async findTraces(request: FindTracesRequest): Promise<FindTracesResponse> {
+        const t0 = Date.now();
+        const params = {
+            'query.service_name': request.query.serviceName,
+            'query.operation_name': request.query.operationName,
+            'query.start_time_min': this._toDateTimeString(
+                request.query.startTimeMin
+            ),
+            'query.start_time_max': this._toDateTimeString(
+                request.query.startTimeMax
+            ),
+            'query.duration_min': this._toDurationUnit(
+                request.query.durationMin
+            ),
+            'query.duration_max': this._toDurationUnit(
+                request.query.durationMax
+            ),
+            'query.search_depth': request.query.searchDepth,
+        };
         try {
-            const httpResponse: any = await this._get('/api/v3/traces', {
-                'query.service_name': request.query.serviceName,
-                'query.operation_name': request.query.operationName,
-                'query.start_time_min': request.query.startTimeMin,
-                'query.start_time_max': request.query.startTimeMax,
-                'query.duration_min': this._toDurationUnit(
-                    request.query.durationMin
-                ),
-                'query.duration_max': this._toDurationUnit(
-                    request.query.durationMax
-                ),
-                'query.search_depth': request.query.searchDepth,
-            });
-            return {
-                resourceSpans: this._normalizeResourceSpans(
-                    httpResponse.result.resourceSpans
-                ),
-            };
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    '[HTTP] findTraces request',
+                    logger.toJson(params),
+                    'baseUrl=',
+                    this.baseUrl
+                );
+            }
+            const httpResponse: any = await this._get('/api/v3/traces', params);
+            const rawSpans = httpResponse.result?.resourceSpans ?? [];
+            const resourceSpans = this._normalizeResourceSpans(rawSpans);
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    `[HTTP] findTraces response in ${Date.now() - t0}ms`,
+                    'resourceSpans.length=',
+                    resourceSpans.length
+                );
+            }
+            return { resourceSpans };
         } catch (err: any) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    `[HTTP] findTraces error after ${Date.now() - t0}ms`,
+                    err?.code ?? err?.name,
+                    err?.message
+                );
+            }
             return this._handleError(err);
         }
     }
