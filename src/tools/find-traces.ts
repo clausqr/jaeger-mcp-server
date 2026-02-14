@@ -1,5 +1,6 @@
 import { JaegerClient } from '../client';
 import { FindTracesResponse } from '../domain';
+import * as logger from '../logger';
 import { Tool } from './types';
 
 import { z } from 'zod';
@@ -123,18 +124,43 @@ export class FindTraces implements Tool {
             searchDepth,
         }: any
     ): Promise<string> {
+        const startTimeMinMs = Date.parse(startTimeMin);
+        const startTimeMaxMs = Date.parse(startTimeMax);
+        const query = {
+            serviceName,
+            operationName,
+            attributes: this._normalizeAttributes(attributes),
+            startTimeMin: startTimeMinMs,
+            startTimeMax: startTimeMaxMs,
+            durationMin,
+            durationMax,
+            searchDepth,
+        };
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                '[find-traces] tool params',
+                logger.toJson({
+                    serviceName,
+                    operationName,
+                    startTimeMin,
+                    startTimeMax,
+                    startTimeMinMs,
+                    startTimeMaxMs,
+                    searchDepth,
+                    durationMin,
+                    durationMax,
+                })
+            );
+        }
         const response: FindTracesResponse = await jaegerClient.findTraces({
-            query: {
-                serviceName,
-                operationName,
-                attributes: this._normalizeAttributes(attributes),
-                startTimeMin: Date.parse(startTimeMin),
-                startTimeMax: Date.parse(startTimeMax),
-                durationMin,
-                durationMax,
-                searchDepth,
-            },
+            query,
         });
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                '[find-traces] result count=',
+                response.resourceSpans?.length ?? 0
+            );
+        }
         return JSON.stringify(response.resourceSpans || {});
     }
 }
