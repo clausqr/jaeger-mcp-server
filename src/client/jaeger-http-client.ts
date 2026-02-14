@@ -67,7 +67,9 @@ export class JaegerHttpClient implements JaegerClient {
         }
         const port =
             configPort ??
-            (url.startsWith(SECURE_URL_SCHEMA) ? SECURE_URL_PORT : DEFAULT_PORT);
+            (url.startsWith(SECURE_URL_SCHEMA)
+                ? SECURE_URL_PORT
+                : DEFAULT_PORT);
         return { url, port };
     }
 
