@@ -137,8 +137,7 @@ export class JaegerGrpcClient implements JaegerClient {
         metadata: grpc.Metadata,
         requestTimeoutMs: number
     ): (method: any, requestData: any, callback: any) => void {
-        const methodPath = (name: string) =>
-            `/${GRPC_SERVICE_NAME}/${name}`;
+        const methodPath = (name: string) => `/${GRPC_SERVICE_NAME}/${name}`;
         const passThrough = (arg: any) => arg;
         const STREAMING_METHODS = new Set(['FindTraces', 'GetTrace']);
 
@@ -259,7 +258,9 @@ export class JaegerGrpcClient implements JaegerClient {
             version: is.version || undefined,
             attributes:
                 is.attributes && is.attributes.length
-                    ? is.attributes.map((kv: IKeyValue) => this._toAttribute(kv))
+                    ? is.attributes.map((kv: IKeyValue) =>
+                          this._toAttribute(kv)
+                      )
                     : undefined,
             droppedAttributesCount: is.droppedAttributesCount || undefined,
         } as InstrumentationScope;
@@ -358,7 +359,9 @@ export class JaegerGrpcClient implements JaegerClient {
     private _toResourceSpans(rs: IResourceSpans): ResourceSpans {
         return {
             resource: this._toResource(rs.resource!),
-            scopeSpans: rs.scopeSpans!.map((ss: IScopeSpans) => this._toScopeSpans(ss)),
+            scopeSpans: rs.scopeSpans!.map((ss: IScopeSpans) =>
+                this._toScopeSpans(ss)
+            ),
             schemaUrl: rs.schemaUrl || undefined,
         } as ResourceSpans;
     }
@@ -416,8 +419,8 @@ export class JaegerGrpcClient implements JaegerClient {
             const grpcResponse: TracesData =
                 await this.queryService.getTrace(grpcRequest);
             return {
-                resourceSpans: grpcResponse.resourceSpans?.map((rs: IResourceSpans) =>
-                    this._toResourceSpans(rs)
+                resourceSpans: grpcResponse.resourceSpans?.map(
+                    (rs: IResourceSpans) => this._toResourceSpans(rs)
                 ),
             } as GetTraceResponse;
         } catch (err: any) {
@@ -472,8 +475,8 @@ export class JaegerGrpcClient implements JaegerClient {
                 );
             }
             return {
-                resourceSpans: grpcResponse.resourceSpans?.map((rs: IResourceSpans) =>
-                    this._toResourceSpans(rs)
+                resourceSpans: grpcResponse.resourceSpans?.map(
+                    (rs: IResourceSpans) => this._toResourceSpans(rs)
                 ),
             } as FindTracesResponse;
         } catch (err: any) {
