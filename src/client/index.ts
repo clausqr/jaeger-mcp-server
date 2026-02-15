@@ -1,8 +1,12 @@
 import { JaegerGrpcClient } from './jaeger-grpc-client';
 import { JaegerHttpClient } from './jaeger-http-client';
-import { ClientConfigurations, JaegerClient } from './types';
+import {
+    ClientConfigurations,
+    JaegerClient,
+    MAX_REQUEST_TIMEOUT_MS,
+} from './types';
 
-export { JaegerClient };
+export { JaegerClient, MAX_REQUEST_TIMEOUT_MS };
 
 export function createClient(
     clientConfigurations: ClientConfigurations

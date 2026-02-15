@@ -23,6 +23,7 @@ import {
 import {
     ClientConfigurations,
     DEFAULT_REQUEST_TIMEOUT_MS,
+    formatRequestTimedOutMessage,
     JaegerClient,
 } from './types';
 import * as logger from '../logger';
@@ -366,9 +367,18 @@ export class JaegerGrpcClient implements JaegerClient {
         } as ResourceSpans;
     }
 
+    /**
+     * Maps gRPC/client errors to user-facing messages. DEADLINE_EXCEEDED becomes a timeout message;
+     * UNIMPLEMENTED returns empty result; others are rethrown.
+     */
     private _handleError<R>(err: any): R {
         if (err.code === grpc.status.UNIMPLEMENTED.valueOf()) {
             return {} as R;
+        }
+        if (err.code === grpc.status.DEADLINE_EXCEEDED.valueOf()) {
+            throw new Error(
+                formatRequestTimedOutMessage(this.requestTimeoutMs)
+            );
         }
         throw err;
     }
