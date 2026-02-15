@@ -1,5 +1,20 @@
 import { SpanKind, StatusCode } from './commons';
 
+/** OpenTelemetry trace ID: exactly 32 hexadecimal characters. */
+const TRACE_ID_REGEX = /^[0-9a-fA-F]{32}$/;
+
+/**
+ * Validates trace ID format (32 hex chars). Throws with a clear message if invalid.
+ * Use at tool boundary so invalid IDs never reach the Jaeger client.
+ */
+export function validateTraceId(traceId: string): void {
+    if (typeof traceId !== 'string' || !TRACE_ID_REGEX.test(traceId)) {
+        throw new Error(
+            `Invalid trace ID: must be 32 hexadecimal characters. Got: ${typeof traceId === 'string' ? JSON.stringify(traceId) : typeof traceId}`
+        );
+    }
+}
+
 const spanKindMapByString: { [key: string]: SpanKind } = {
     UNSPECIFIED: SpanKind.UNSPECIFIED,
     INTERNAL: SpanKind.INTERNAL,
