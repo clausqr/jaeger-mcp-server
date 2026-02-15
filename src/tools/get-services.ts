@@ -1,6 +1,6 @@
 import { JaegerClient } from '../client';
 import { GetServicesResponse } from '../domain';
-import { Tool } from './types';
+import { Tool, ToolInput } from './types';
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
@@ -20,7 +20,7 @@ export class GetServices implements Tool {
     async handle(
         server: Server,
         jaegerClient: JaegerClient,
-        { traceId }: any
+        _args: ToolInput
     ): Promise<string> {
         const response: GetServicesResponse = await jaegerClient.getServices(
             {}

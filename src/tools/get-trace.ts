@@ -1,6 +1,6 @@
 import { JaegerClient } from '../client';
 import { GetTraceResponse, validateTraceId } from '../domain';
-import { Tool } from './types';
+import { Tool, ToolInput } from './types';
 
 import { z } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -45,8 +45,11 @@ export class GetTrace implements Tool {
     async handle(
         server: Server,
         jaegerClient: JaegerClient,
-        { traceId, startTime, endTime }: any
+        args: ToolInput
     ): Promise<string> {
+        const traceId = args.traceId as string;
+        const startTime = args.startTime as string | undefined;
+        const endTime = args.endTime as string | undefined;
         validateTraceId(traceId);
         const response: GetTraceResponse = await jaegerClient.getTrace({
             traceId,
