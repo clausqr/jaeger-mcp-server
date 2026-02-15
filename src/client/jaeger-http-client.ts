@@ -44,14 +44,16 @@ export class JaegerHttpClient implements JaegerClient {
     }
 
     private async _get<R>(path: string, params?: any): Promise<R> {
+        const headers: Record<string, string> = {};
+        if (this.authorizationHeader) {
+            headers.Authorization = this.authorizationHeader;
+        }
         const response: AxiosResponse = await axios.get(
             `${this.baseUrl}/${path}`.replace(/([^:])\/\/+/, '$1/'),
             {
                 params,
                 timeout: this.requestTimeoutMs,
-                headers: {
-                    Authorization: this.authorizationHeader,
-                },
+                headers,
             }
         );
         if (response.status != 200) {
@@ -136,14 +138,12 @@ export class JaegerHttpClient implements JaegerClient {
 
     private _normalizeResourceSpans(resourceSpans: any[]): any[] {
         return resourceSpans.map((rs: any) => {
-            (rs.resource = this._normalizeResource(rs.resource)),
-                (rs.scopeSpans = rs.scopeSpans?.map((ss: any) => {
-                    ss.scope = this._normalizeInstrumentationScope(ss.scope);
-                    ss.spans = ss.spans?.map((s: any) => {
-                        return this._normalizeSpan(s);
-                    });
-                    return ss;
-                }));
+            rs.resource = this._normalizeResource(rs.resource);
+            rs.scopeSpans = rs.scopeSpans?.map((ss: any) => {
+                ss.scope = this._normalizeInstrumentationScope(ss.scope);
+                ss.spans = ss.spans?.map((s: any) => this._normalizeSpan(s));
+                return ss;
+            });
             return rs;
         });
     }
