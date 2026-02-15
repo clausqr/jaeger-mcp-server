@@ -14,16 +14,12 @@ import {
     DEFAULT_REQUEST_TIMEOUT_MS,
     JaegerClient,
 } from './types';
+import { parseUrlAndPort } from './url-utils';
 
 import * as logger from '../logger';
 import axios, { AxiosResponse } from 'axios';
 
-const DEFAULT_PORT = 16686;
-const URL_SCHEMA_SEPARATOR: string = '://';
-const SECURE_URL_SCHEMA: string = 'https://';
-const INSECURE_URL_SCHEMA: string = 'http://';
-const SECURE_URL_PORT: number = 443;
-const HTTP_STATUS_CODE_NOT_FOUND: number = 404;
+const HTTP_STATUS_CODE_NOT_FOUND = 404;
 
 export class JaegerHttpClient implements JaegerClient {
     private readonly url: string;
@@ -34,43 +30,16 @@ export class JaegerHttpClient implements JaegerClient {
     private readonly baseUrl: string;
 
     constructor(clientConfigurations: ClientConfigurations) {
-        const { url: baseUrl, port } = JaegerHttpClient._parseUrlAndPort(
+        const { url: baseUrl, port } = parseUrlAndPort(
             clientConfigurations.url,
             clientConfigurations.port
         );
         this.url = baseUrl;
         this.port = port;
-        this.baseUrl = port != null ? `${baseUrl}:${port}` : baseUrl;
+        this.baseUrl = `${baseUrl}:${port}`;
         this.authorizationHeader = clientConfigurations.authorizationHeader;
         this.requestTimeoutMs =
             clientConfigurations.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-    }
-
-    /** Returns base URL (no port) and port. If URL has :port, it is stripped and returned; otherwise port from config or default. */
-    private static _parseUrlAndPort(
-        url: string,
-        configPort?: number
-    ): { url: string; port: number } {
-        const schemaIdx = url.indexOf(URL_SCHEMA_SEPARATOR);
-        if (schemaIdx < 0) {
-            url =
-                configPort === SECURE_URL_PORT
-                    ? `${SECURE_URL_SCHEMA}${url}`
-                    : `${INSECURE_URL_SCHEMA}${url}`;
-        }
-        const match = url.match(/^(.+):(\d+)$/);
-        if (match) {
-            return {
-                url: match[1],
-                port: parseInt(match[2], 10),
-            };
-        }
-        const port =
-            configPort ??
-            (url.startsWith(SECURE_URL_SCHEMA)
-                ? SECURE_URL_PORT
-                : DEFAULT_PORT);
-        return { url, port };
     }
 
     private async _get<R>(path: string, params?: any): Promise<R> {
@@ -179,7 +148,8 @@ export class JaegerHttpClient implements JaegerClient {
     }
 
     private _handleError<R>(err: any): R {
-        if (err.status === HTTP_STATUS_CODE_NOT_FOUND) {
+        const status = err?.response?.status ?? err?.status;
+        if (status === HTTP_STATUS_CODE_NOT_FOUND) {
             return {} as R;
         }
         throw err;

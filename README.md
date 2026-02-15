@@ -243,6 +243,8 @@ If you would like to contribute, please
 - Create a branch for your changes and make your changes on it.
 - Send a pull request by explaining clearly what is your contribution.
 
+**CI** runs on pull requests targeting `master` or `develop` (lint, test, build). Before pushing, run `npm run lint` (Prettier + ESLint) and `npm run test`.
+
 > Tip:
 > Please check the existing pull requests for similar contributions and
 > consider submit an issue to discuss the proposed feature before writing code.
