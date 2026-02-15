@@ -22,22 +22,27 @@ function _timeAsString(): string {
     })}`;
 }
 
-function _normalizeArgs(...args: any[]): any[] {
+function _normalizeArgs(...args: unknown[]): unknown[] {
     if (isDebugEnabled()) {
         return args;
     } else {
-        return (args || []).map((arg) => {
+        return (args || []).map((arg: unknown) => {
             if (!arg) {
                 return '';
             }
-            if (
-                arg instanceof Error ||
-                (arg.name && arg.message && arg.stack)
-            ) {
+            if (arg instanceof Error) {
                 return `${arg.name}: ${arg.message}`;
-            } else {
-                return arg;
             }
+            if (
+                typeof arg === 'object' &&
+                arg !== null &&
+                'name' in arg &&
+                'message' in arg &&
+                'stack' in arg
+            ) {
+                return `${(arg as Error).name}: ${(arg as Error).message}`;
+            }
+            return arg;
         });
     }
 }
@@ -50,7 +55,7 @@ export function setDebugEnabled(enabled: boolean): void {
     debugEnabled = enabled;
 }
 
-export function debug(...args: any[]): void {
+export function debug(...args: unknown[]): void {
     if (DISABLED) {
         return;
     }
@@ -66,7 +71,7 @@ export function debug(...args: any[]): void {
     }
 }
 
-export function info(...args: any[]): void {
+export function info(...args: unknown[]): void {
     if (DISABLED) {
         return;
     }
@@ -80,7 +85,7 @@ export function info(...args: any[]): void {
     );
 }
 
-export function warn(...args: any[]): void {
+export function warn(...args: unknown[]): void {
     if (DISABLED) {
         return;
     }
@@ -94,7 +99,7 @@ export function warn(...args: any[]): void {
     );
 }
 
-export function error(...args: any[]): void {
+export function error(...args: unknown[]): void {
     if (DISABLED) {
         return;
     }
@@ -110,7 +115,7 @@ export function error(...args: any[]): void {
 
 function _getCircularReplacer() {
     const seen = new WeakSet();
-    return (key: string, value: any) => {
+    return (key: string, value: unknown) => {
         if (typeof value === 'object' && value !== null) {
             if (seen.has(value)) {
                 return;
@@ -121,6 +126,6 @@ function _getCircularReplacer() {
     };
 }
 
-export function toJson(obj: any): string {
+export function toJson(obj: unknown): string {
     return JSON.stringify(obj, _getCircularReplacer());
 }

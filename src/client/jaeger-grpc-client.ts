@@ -124,7 +124,18 @@ export class JaegerGrpcClient implements JaegerClient {
                 : grpc.credentials.createInsecure()
         );
         return QueryService.create(
-            JaegerGrpcClient._createRpcImpl(client, metadata, requestTimeoutMs)
+            JaegerGrpcClient._createRpcImpl(
+                client,
+                metadata,
+                requestTimeoutMs
+            ) as (
+                method: { name: string },
+                requestData: Uint8Array,
+                callback: (
+                    err: Error | null,
+                    response?: Uint8Array | null
+                ) => void
+            ) => void
         );
     }
 
@@ -137,15 +148,26 @@ export class JaegerGrpcClient implements JaegerClient {
         client: grpc.Client,
         metadata: grpc.Metadata,
         requestTimeoutMs: number
-    ): (method: any, requestData: any, callback: any) => void {
+    ): (
+        method: { name: string },
+        requestData: unknown,
+        callback: (err: grpc.ServiceError | null, response?: unknown) => void
+    ) => void {
         const methodPath = (name: string) => `/${GRPC_SERVICE_NAME}/${name}`;
-        const passThrough = (arg: any) => arg;
+        const passThrough = (arg: unknown): Buffer => arg as Buffer;
         const STREAMING_METHODS = new Set(['FindTraces', 'GetTrace']);
 
         const deserializeTracesData = (buf: Buffer): TracesData =>
             TracesData.decode(buf);
 
-        return (method: any, requestData: any, callback: any) => {
+        return (
+            method: { name: string },
+            requestData: unknown,
+            callback: (
+                err: grpc.ServiceError | null,
+                response?: unknown
+            ) => void
+        ) => {
             const deadline = new Date(Date.now() + requestTimeoutMs);
             const path = methodPath(method.name);
 
@@ -166,7 +188,9 @@ export class JaegerGrpcClient implements JaegerClient {
                     );
                     callback(null, TracesData.create({ resourceSpans }));
                 });
-                stream.on('error', (err: any) => callback(err));
+                stream.on('error', (err: unknown) =>
+                    callback(err as grpc.ServiceError)
+                );
                 return;
             }
 
@@ -371,11 +395,15 @@ export class JaegerGrpcClient implements JaegerClient {
      * Maps gRPC/client errors to user-facing messages. DEADLINE_EXCEEDED becomes a timeout message;
      * UNIMPLEMENTED returns empty result; others are rethrown.
      */
-    private _handleError<R>(err: any): R {
-        if (err.code === grpc.status.UNIMPLEMENTED.valueOf()) {
+    private _handleError<R>(err: unknown): R {
+        if (!err || typeof err !== 'object' || !('code' in err)) {
+            throw err;
+        }
+        const e = err as grpc.ServiceError;
+        if (e.code === grpc.status.UNIMPLEMENTED.valueOf()) {
             return {} as R;
         }
-        if (err.code === grpc.status.DEADLINE_EXCEEDED.valueOf()) {
+        if (e.code === grpc.status.DEADLINE_EXCEEDED.valueOf()) {
             throw new Error(
                 formatRequestTimedOutMessage(this.requestTimeoutMs)
             );
@@ -384,7 +412,7 @@ export class JaegerGrpcClient implements JaegerClient {
     }
 
     async getServices(
-        request: GetServicesRequest
+        _request: GetServicesRequest
     ): Promise<GetServicesResponse> {
         try {
             const grpcRequest: IGetServicesRequest = {};
@@ -393,7 +421,7 @@ export class JaegerGrpcClient implements JaegerClient {
             return {
                 services: grpcResponse.services,
             } as GetServicesResponse;
-        } catch (err: any) {
+        } catch (err: unknown) {
             return this._handleError(err);
         }
     }
@@ -413,7 +441,7 @@ export class JaegerGrpcClient implements JaegerClient {
                     this._toOperation(op)
                 ),
             } as GetOperationsResponse;
-        } catch (err: any) {
+        } catch (err: unknown) {
             return this._handleError(err);
         }
     }
@@ -433,7 +461,7 @@ export class JaegerGrpcClient implements JaegerClient {
                     (rs: IResourceSpans) => this._toResourceSpans(rs)
                 ),
             } as GetTraceResponse;
-        } catch (err: any) {
+        } catch (err: unknown) {
             return this._handleError(err);
         }
     }
@@ -489,12 +517,17 @@ export class JaegerGrpcClient implements JaegerClient {
                     (rs: IResourceSpans) => this._toResourceSpans(rs)
                 ),
             } as FindTracesResponse;
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (logger.isDebugEnabled()) {
+                const e = err as {
+                    code?: number;
+                    name?: string;
+                    message?: string;
+                };
                 logger.debug(
                     `[gRPC] findTraces error after ${Date.now() - t0}ms`,
-                    err?.code ?? err?.name,
-                    err?.message
+                    e?.code ?? e?.name,
+                    e?.message
                 );
             }
             return this._handleError(err);

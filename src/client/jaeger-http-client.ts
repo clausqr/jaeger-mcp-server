@@ -7,6 +7,7 @@ import {
     GetServicesResponse,
     GetTraceRequest,
     GetTraceResponse,
+    ResourceSpans,
     toSpanKind,
 } from '../domain';
 import {
@@ -43,7 +44,10 @@ export class JaegerHttpClient implements JaegerClient {
             clientConfigurations.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     }
 
-    private async _get<R>(path: string, params?: any): Promise<R> {
+    private async _get<R>(
+        path: string,
+        params?: Record<string, unknown>
+    ): Promise<R> {
         const headers: Record<string, string> = {};
         if (this.authorizationHeader) {
             headers.Authorization = this.authorizationHeader;
@@ -76,72 +80,103 @@ export class JaegerHttpClient implements JaegerClient {
         }
     }
 
-    private _normalizeAttribute(attribute: any): any {
-        if (typeof attribute.value?.intValue === 'string') {
-            attribute.value.intValue = parseInt(
-                attribute.value?.intValue as string
-            );
+    private _normalizeAttribute(
+        attribute: Record<string, unknown>
+    ): Record<string, unknown> {
+        const attr = attribute as {
+            value?: { intValue?: unknown; doubleValue?: unknown };
+        };
+        if (typeof attr.value?.intValue === 'string') {
+            attr.value.intValue = parseInt(attr.value.intValue as string);
         }
-        if (typeof attribute.value?.doubleValue === 'string') {
-            attribute.value.doubleValue = parseFloat(
-                attribute.value?.doubleValue as string
+        if (typeof attr.value?.doubleValue === 'string') {
+            attr.value.doubleValue = parseFloat(
+                attr.value.doubleValue as string
             );
         }
         return attribute;
     }
 
-    private _normalizeResource(resource: any): any {
-        resource.attributes = resource.attributes?.map((a: any) => {
-            return this._normalizeAttribute(a);
-        });
+    private _normalizeResource(
+        resource: Record<string, unknown>
+    ): Record<string, unknown> {
+        const res = resource as { attributes?: unknown[] };
+        res.attributes = res.attributes?.map((a) =>
+            this._normalizeAttribute(a as Record<string, unknown>)
+        );
         return resource;
     }
 
-    private _normalizeInstrumentationScope(instrumentationScope: any): any {
-        instrumentationScope.attributes = instrumentationScope.attributes?.map(
-            (a: any) => {
-                return this._normalizeAttribute(a);
-            }
+    private _normalizeInstrumentationScope(
+        instrumentationScope: Record<string, unknown>
+    ): Record<string, unknown> {
+        const scope = instrumentationScope as { attributes?: unknown[] };
+        scope.attributes = scope.attributes?.map((a) =>
+            this._normalizeAttribute(a as Record<string, unknown>)
         );
         return instrumentationScope;
     }
 
-    private _normalizeEvent(event: any): any {
-        event.attributes = event.attributes?.map((a: any) => {
-            return this._normalizeAttribute(a);
-        });
+    private _normalizeEvent(
+        event: Record<string, unknown>
+    ): Record<string, unknown> {
+        const ev = event as { attributes?: unknown[] };
+        ev.attributes = ev.attributes?.map((a) =>
+            this._normalizeAttribute(a as Record<string, unknown>)
+        );
         return event;
     }
 
-    private _normalizeLink(link: any): any {
-        link.attributes = link.attributes?.map((a: any) => {
-            return this._normalizeAttribute(a);
-        });
+    private _normalizeLink(
+        link: Record<string, unknown>
+    ): Record<string, unknown> {
+        const l = link as { attributes?: unknown[] };
+        l.attributes = l.attributes?.map((a) =>
+            this._normalizeAttribute(a as Record<string, unknown>)
+        );
         return link;
     }
 
-    private _normalizeSpan(span: any): any {
-        if (typeof span.kind === 'number') {
-            span.kind = toSpanKind(span.kind as number)?.toString();
+    private _normalizeSpan(
+        span: Record<string, unknown>
+    ): Record<string, unknown> {
+        const s = span as {
+            kind?: number | string;
+            attributes?: unknown[];
+            events?: unknown[];
+            links?: unknown[];
+        };
+        if (typeof s.kind === 'number') {
+            s.kind = toSpanKind(s.kind)?.toString();
         }
-        span.attributes = span.attributes?.map((a: any) => {
-            return this._normalizeAttribute(a);
-        });
-        span.events = span.events?.map((a: any) => {
-            return this._normalizeEvent(a);
-        });
-        span.links = span.links?.map((a: any) => {
-            return this._normalizeLink(a);
-        });
+        s.attributes = s.attributes?.map((a) =>
+            this._normalizeAttribute(a as Record<string, unknown>)
+        );
+        s.events = s.events?.map((a) =>
+            this._normalizeEvent(a as Record<string, unknown>)
+        );
+        s.links = s.links?.map((a) =>
+            this._normalizeLink(a as Record<string, unknown>)
+        );
         return span;
     }
 
-    private _normalizeResourceSpans(resourceSpans: any[]): any[] {
-        return resourceSpans.map((rs: any) => {
-            rs.resource = this._normalizeResource(rs.resource);
-            rs.scopeSpans = rs.scopeSpans?.map((ss: any) => {
-                ss.scope = this._normalizeInstrumentationScope(ss.scope);
-                ss.spans = ss.spans?.map((s: any) => this._normalizeSpan(s));
+    private _normalizeResourceSpans(
+        resourceSpans: Record<string, unknown>[]
+    ): Record<string, unknown>[] {
+        return resourceSpans.map((rs) => {
+            const r = rs as { resource?: unknown; scopeSpans?: unknown[] };
+            r.resource = this._normalizeResource(
+                (r.resource ?? {}) as Record<string, unknown>
+            );
+            r.scopeSpans = r.scopeSpans?.map((ss) => {
+                const s = ss as { scope?: unknown; spans?: unknown[] };
+                s.scope = this._normalizeInstrumentationScope(
+                    (s.scope ?? {}) as Record<string, unknown>
+                );
+                s.spans = s.spans?.map((sSpan) =>
+                    this._normalizeSpan(sSpan as Record<string, unknown>)
+                );
                 return ss;
             });
             return rs;
@@ -152,15 +187,17 @@ export class JaegerHttpClient implements JaegerClient {
      * Maps HTTP/client errors to user-facing messages. Axios timeout (ECONNABORTED) becomes a
      * timeout message; 404 returns empty result; others are rethrown.
      */
-    private _handleError<R>(err: any): R {
-        const status = err?.response?.status ?? err?.status;
+    private _handleError<R>(err: unknown): R {
+        const status =
+            (err as { response?: { status?: number }; status?: number })
+                ?.response?.status ?? (err as { status?: number })?.status;
         if (status === HTTP_STATUS_CODE_NOT_FOUND) {
             return {} as R;
         }
+        const e = err as { code?: string; message?: string };
         const isTimeout =
-            err.code === 'ECONNABORTED' ||
-            (err.message &&
-                String(err.message).toLowerCase().includes('timeout'));
+            e.code === 'ECONNABORTED' ||
+            (e.message && String(e.message).toLowerCase().includes('timeout'));
         if (isTimeout) {
             throw new Error(
                 formatRequestTimedOutMessage(this.requestTimeoutMs)
@@ -170,14 +207,16 @@ export class JaegerHttpClient implements JaegerClient {
     }
 
     async getServices(
-        request: GetServicesRequest
+        _request: GetServicesRequest
     ): Promise<GetServicesResponse> {
         try {
-            const httpResponse: any = await this._get('/api/v3/services');
+            const httpResponse = await this._get<{ services?: string[] }>(
+                '/api/v3/services'
+            );
             return {
                 services: httpResponse.services,
             } as GetServicesResponse;
-        } catch (err: any) {
+        } catch (err: unknown) {
             return this._handleError(err);
         }
     }
@@ -186,33 +225,35 @@ export class JaegerHttpClient implements JaegerClient {
         request: GetOperationsRequest
     ): Promise<GetOperationsResponse> {
         try {
-            const httpResponse: any = await this._get('/api/v3/operations', {
-                service: request.service,
-                span_kind: request.spanKind?.toString().toLowerCase(),
-            });
+            const httpResponse = await this._get<{ operations?: unknown[] }>(
+                '/api/v3/operations',
+                {
+                    service: request.service,
+                    span_kind: request.spanKind?.toString().toLowerCase(),
+                }
+            );
             return {
                 operations: httpResponse.operations,
             } as GetOperationsResponse;
-        } catch (err: any) {
+        } catch (err: unknown) {
             return this._handleError(err);
         }
     }
 
     async getTrace(request: GetTraceRequest): Promise<GetTraceResponse> {
         try {
-            const httpResponse: any = await this._get(
-                `/api/v3/traces/${request.traceId}`,
-                {
-                    startTime: this._toDateTimeString(request.startTime),
-                    endTime: this._toDateTimeString(request.endTime),
-                }
-            );
+            const httpResponse = await this._get<{
+                result?: { resourceSpans?: Record<string, unknown>[] };
+            }>(`/api/v3/traces/${request.traceId}`, {
+                startTime: this._toDateTimeString(request.startTime),
+                endTime: this._toDateTimeString(request.endTime),
+            });
             return {
                 resourceSpans: this._normalizeResourceSpans(
-                    httpResponse.result.resourceSpans
-                ),
+                    httpResponse.result?.resourceSpans ?? []
+                ) as ResourceSpans[],
             };
-        } catch (err: any) {
+        } catch (err: unknown) {
             return this._handleError(err);
         }
     }
@@ -246,7 +287,7 @@ export class JaegerHttpClient implements JaegerClient {
             request.query.attributes &&
             Object.keys(request.query.attributes).length > 0
         ) {
-            (params as Record<string, any>)['query.attributes'] =
+            (params as Record<string, unknown>)['query.attributes'] =
                 JSON.stringify(request.query.attributes);
         }
         try {
@@ -258,9 +299,13 @@ export class JaegerHttpClient implements JaegerClient {
                     this.baseUrl
                 );
             }
-            const httpResponse: any = await this._get('/api/v3/traces', params);
+            const httpResponse = await this._get<{
+                result?: { resourceSpans?: Record<string, unknown>[] };
+            }>('/api/v3/traces', params);
             const rawSpans = httpResponse.result?.resourceSpans ?? [];
-            const resourceSpans = this._normalizeResourceSpans(rawSpans);
+            const resourceSpans = this._normalizeResourceSpans(
+                rawSpans
+            ) as ResourceSpans[];
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     `[HTTP] findTraces response in ${Date.now() - t0}ms`,
@@ -269,12 +314,17 @@ export class JaegerHttpClient implements JaegerClient {
                 );
             }
             return { resourceSpans };
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (logger.isDebugEnabled()) {
+                const e = err as {
+                    code?: unknown;
+                    name?: unknown;
+                    message?: unknown;
+                };
                 logger.debug(
                     `[HTTP] findTraces error after ${Date.now() - t0}ms`,
-                    err?.code ?? err?.name,
-                    err?.message
+                    e?.code ?? e?.name,
+                    e?.message
                 );
             }
             return this._handleError(err);

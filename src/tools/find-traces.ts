@@ -1,7 +1,7 @@
 import { JaegerClient } from '../client';
 import { FindTracesResponse } from '../domain';
 import * as logger from '../logger';
-import { Tool } from './types';
+import { Tool, ToolInput } from './types';
 
 import { z } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -99,12 +99,18 @@ export class FindTraces implements Tool {
     }
 
     private _normalizeAttributes(
-        attributes: Map<string, string | number | boolean>
+        attributes?:
+            | Map<string, string | number | boolean>
+            | Record<string, string | number | boolean>
     ): { [k: string]: string } {
         const normalizedAttributes: { [k: string]: string } = {};
         if (attributes) {
-            for (let [key, value] of Object.entries(attributes)) {
-                normalizedAttributes[key] = value.toString();
+            const entries =
+                attributes instanceof Map
+                    ? Array.from(attributes.entries())
+                    : Object.entries(attributes);
+            for (const [key, value] of entries) {
+                normalizedAttributes[key] = String(value);
             }
         }
         return normalizedAttributes;
@@ -113,19 +119,20 @@ export class FindTraces implements Tool {
     async handle(
         server: Server,
         jaegerClient: JaegerClient,
-        {
-            serviceName,
-            operationName,
-            attributes,
-            startTimeMin,
-            startTimeMax,
-            durationMin,
-            durationMax,
-            searchDepth,
-        }: any
+        args: ToolInput
     ): Promise<string> {
+        const serviceName = args.serviceName as string;
+        const operationName = args.operationName as string | undefined;
+        const attributes = args.attributes as
+            | Record<string, string | number | boolean>
+            | undefined;
+        const startTimeMin = args.startTimeMin as string;
+        const startTimeMax = args.startTimeMax as string;
         const startTimeMinMs = Date.parse(startTimeMin);
         const startTimeMaxMs = Date.parse(startTimeMax);
+        const durationMin = args.durationMin as number | undefined;
+        const durationMax = args.durationMax as number | undefined;
+        const searchDepth = args.searchDepth as number | undefined;
         const query = {
             serviceName,
             operationName,

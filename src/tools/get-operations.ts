@@ -1,6 +1,6 @@
 import { JaegerClient } from '../client';
 import { GetOperationsResponse, toSpanKind } from '../domain';
-import { Tool } from './types';
+import { Tool, ToolInput } from './types';
 
 import { z } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -38,12 +38,12 @@ export class GetOperations implements Tool {
     async handle(
         server: Server,
         jaegerClient: JaegerClient,
-        { service, spanKind }: any
+        args: ToolInput
     ): Promise<string> {
         const response: GetOperationsResponse =
             await jaegerClient.getOperations({
-                service,
-                spanKind: toSpanKind(spanKind),
+                service: args.service as string,
+                spanKind: toSpanKind(args.spanKind as string | undefined),
             });
         return JSON.stringify(response.operations);
     }

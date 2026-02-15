@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
+/* eslint-disable @typescript-eslint/no-require-imports -- version read at load time from package.json */
 const SERVER_NAME = 'jaeger-mcp-server';
 const { version: SERVER_VERSION } = require('../package.json');
 
@@ -97,14 +98,14 @@ export async function startServer(): Promise<void> {
                     content: [{ type: 'text', text: response }],
                     isError: false,
                 };
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const message =
+                    error instanceof Error ? error.message : String(error);
                 if (tool.name() === 'find-traces' && logger.isDebugEnabled()) {
-                    logger.debug('find-traces error', error.message);
+                    logger.debug('find-traces error', message);
                 }
                 return {
-                    content: [
-                        { type: 'text', text: `Error: ${error.message}` },
-                    ],
+                    content: [{ type: 'text', text: `Error: ${message}` }],
                     isError: true,
                 };
             }
