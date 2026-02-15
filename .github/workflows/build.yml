@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - "master"
+      - "develop"
 
 jobs:
   build:
@@ -20,6 +21,8 @@ jobs:
       - name: NPM Install
         run: npm install
       - name: NPM Lint
-        run: npm run lint:check
+        run: npm run lint
+      - name: NPM Test
+        run: npm run test
       - name: NPM Build
         run: npm run build

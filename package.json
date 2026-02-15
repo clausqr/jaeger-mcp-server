@@ -29,7 +29,10 @@
     "start": "ts-node ./src/index.ts",
     "watch": "tsc --watch",
     "inspector": "npm run build && chmod 755 './dist/index.js' && npx @modelcontextprotocol/inspector dist/index.js --debug",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "npm run lint:check && npm run lint:eslint",
+    "lint:eslint": "eslint ./src",
     "lint:check": "prettier --config .prettierrc.json --check ./src/*.ts ./src/**/*.ts ./src/**/**/*.ts ./src/**/**/**/*.ts",
     "lint:format": "prettier --config .prettierrc.json --write ./src/*.ts ./src/**/*.ts ./src/**/**/*.ts ./src/**/**/**/*.ts",
     "release:patch": "release-it --ci --git.commit --git.push --git.tag --git.tagName='v${version}' --github.release --no-git.requireCleanWorkingDir --no-git.requireUpstream --npm.publish --npm.skipChecks",
@@ -53,7 +56,8 @@
     "protobufjs-cli": "1.1.3",
     "release-it": "^19.2.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^1.6.1"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.13.3",
