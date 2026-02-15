@@ -1,6 +1,6 @@
 import { SpanKind } from './commons';
 
-export type GetServicesRequest = {};
+export type GetServicesRequest = object;
 
 export type GetOperationsRequest = {
     service: string;

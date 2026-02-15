@@ -5,9 +5,9 @@ import typescriptParser from '@typescript-eslint/parser';
 import typescript from '@typescript-eslint/eslint-plugin';
 
 export default [
+    { ignores: ['dist/**', 'node_modules/**', 'src/generated/**'] },
     {
         files: ['src/**/*.ts'],
-        ignores: ['dist/**', 'node_modules/**'],
         languageOptions: {
             parser: typescriptParser,
             parserOptions: {
