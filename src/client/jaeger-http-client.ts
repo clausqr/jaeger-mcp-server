@@ -216,6 +216,12 @@ export class JaegerHttpClient implements JaegerClient {
         }
     }
 
+    /**
+     * Find traces matching the query. Sends all query params to /api/v3/traces,
+     * including attributes when present so attribute filters work over HTTP
+     * (parity with gRPC). The Jaeger HTTP API expects query.attributes as a
+     * single query param with a URL-encoded JSON string map (e.g. {"key":"value"}).
+     */
     async findTraces(request: FindTracesRequest): Promise<FindTracesResponse> {
         const t0 = Date.now();
         const params = {
@@ -235,6 +241,14 @@ export class JaegerHttpClient implements JaegerClient {
             ),
             'query.search_depth': request.query.searchDepth,
         };
+        if (
+            request.query.attributes &&
+            Object.keys(request.query.attributes).length > 0
+        ) {
+            (params as Record<string, any>)['query.attributes'] = JSON.stringify(
+                request.query.attributes
+            );
+        }
         try {
             if (logger.isDebugEnabled()) {
                 logger.debug(
