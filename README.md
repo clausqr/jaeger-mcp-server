@@ -45,8 +45,8 @@ like VS Code, Claude, Cursor, Windsurf Github Copilot via the `jaeger-mcp-server
 }
 ```
 
-### Cursor (this project)
-Use `.cursor/mcp.json` in this repo; it runs the local build and reads `JAEGER_URL` from `.env` or the config.
+### Cursor (local to project)
+Use `.cursor/mcp.json` in the repo; it runs the local build and reads `JAEGER_URL` from `.env` or the config.
 
 ### Cursor (other projects or global)
 To use from **any other project**, add the server to **global** MCP config so it’s available everywhere:
