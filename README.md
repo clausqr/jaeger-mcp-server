@@ -4,8 +4,25 @@
 ![NPM Version](https://badge.fury.io/js/jaeger-mcp-server.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-MCP Server for [Jaeger](https://www.jaegertracing.io/).
+**Jaeger MCP Server** is a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that connects **AI assistants and LLMs** to [Jaeger](https://www.jaegertracing.io/) for distributed tracing and observability. Query traces, list services, and search spans from Cursor, Claude Desktop, VS Code, or any MCP client—using the Jaeger HTTP or gRPC API and **OpenTelemetry-compatible** formats.
 
+**Use it to:** list Jaeger services and operations, find traces by service/time/attributes, and fetch full trace spans by ID—all from your AI chat or editor.
+
+**AI/LLM-friendly:** Tools return **structured JSON** (OpenTelemetry resource spans) so models can reason over trace data, suggest fixes, or correlate with code. No screen-scraping—your AI gets first-class trace access for debugging, latency analysis, and observability workflows.
+
+---
+
+## Table of contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Example prompts (AI / LLM)](#example-prompts-ai--llm)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Components (tools)](#components)
+- [Roadmap](#roadmap)
+- [Issues and Feedback](#issues-and-feedback)
+- [Contribution](#contribution)
 
 ## Prerequisites
 - Node.js 18+
@@ -13,8 +30,7 @@ MCP Server for [Jaeger](https://www.jaegertracing.io/).
 
 ## Quick Start
 
-This MCP server (using `STDIO` transport) can be added to any MCP Client 
-like VS Code, Claude, Cursor, Windsurf Github Copilot via the `jaeger-mcp-server` NPM package.
+Install and run the server via the `jaeger-mcp-server` npm package. It uses STDIO transport and works with any MCP client: **VS Code**, **Claude Desktop**, **Cursor**, Windsurf, or GitHub Copilot.
 
 ### VS Code
 
@@ -72,6 +88,18 @@ To use from **any other project**, add the server to **global** MCP config so it
 Set `JAEGER_URL` to your Jaeger API URL (HTTP or gRPC). Reload MCP in Cursor (Settings → Features → MCP, or Command Palette → MCP) and the Jaeger tools will show in chat.
 
 Alternatively, in **another project** only, create that project’s `.cursor/mcp.json` with the same `jaeger` block above.
+
+### Example prompts (AI / LLM)
+
+Once the server is connected, you can ask your AI assistant in natural language; it will call the Jaeger MCP tools and interpret the results. Examples:
+
+- *“What services are in Jaeger?”* → uses `get-services`
+- *“List operations for the `api-gateway` service.”* → uses `get-operations`
+- *“Find traces for `order-service` in the last hour.”* → uses `find-traces` with a narrow time window
+- *“Show me the full trace for ID `014c2d3d2f2bc95b145834e7c6063744`.”* → uses `get-trace`
+- *“Which traces for `payment-service` took longer than 500ms?”* → uses `find-traces` with `durationMin`
+
+The model receives JSON (spans, attributes, durations) and can summarize, spot bottlenecks, or suggest where to look in your code.
 
 ## Configuration
 
@@ -151,9 +179,11 @@ CI runs on pull requests (lint, test, build). Before pushing, run `npm run lint`
 
 ## Components
 
-### Tools
+### MCP tools
 
-- `get-operations`: Gets the operations as JSON array of object with `name` and `spanKind` properties.
+The server exposes four tools for Jaeger/OpenTelemetry trace data. Each returns deterministic JSON so AI agents and LLMs can reliably parse and reason over trace results.
+
+- **`get-operations`**: Gets the operations as JSON array of object with `name` and `spanKind` properties.
   Supports the following input parameters:
     - `service`:
         - `Mandatory`: `true`
@@ -163,9 +193,9 @@ CI runs on pull requests (lint, test, build). Before pushing, run `npm run lint`
         - `Mandatory`: `false`
         - `Type`: `string`
         - `Description`: Filters operations by OpenTelemetry span kind (`server`, `client`, `producer`, `consumer`, `internal`)
-- `get-services`: Gets the service names as JSON array of string.
+- **`get-services`**: Gets the service names as JSON array of string.
   No input parameter supported.
-- `get-trace`: Gets the spans by the given trace by ID as JSON array of object in the OpenTelemetry resource spans format.
+- **`get-trace`**: Gets the spans by the given trace by ID as JSON array of object in the OpenTelemetry resource spans format.
     - `traceId`:
         - `Mandatory`: `true`
         - `Type`: `string`
@@ -178,7 +208,7 @@ CI runs on pull requests (lint, test, build). Before pushing, run `npm run lint`
         - `Mandatory`: `false`
         - `Type`: `string`
         - `Description`: The end time to filter spans in the RFC 3339, section 5.6 format, (e.g., `2017-07-21T17:32:28Z`)
-- `find-traces`: Searches the spans as JSON array of object in the OpenTelemetry resource spans format.
+- **`find-traces`**: Searches the spans as JSON array of object in the OpenTelemetry resource spans format.
     - `serviceName`:
         - `Mandatory`: `true`
         - `Type`: `string`
