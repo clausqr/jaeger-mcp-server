@@ -159,7 +159,8 @@ export class JaegerHttpClient implements JaegerClient {
         }
         const isTimeout =
             err.code === 'ECONNABORTED' ||
-            (err.message && String(err.message).toLowerCase().includes('timeout'));
+            (err.message &&
+                String(err.message).toLowerCase().includes('timeout'));
         if (isTimeout) {
             throw new Error(
                 formatRequestTimedOutMessage(this.requestTimeoutMs)
@@ -245,9 +246,8 @@ export class JaegerHttpClient implements JaegerClient {
             request.query.attributes &&
             Object.keys(request.query.attributes).length > 0
         ) {
-            (params as Record<string, any>)['query.attributes'] = JSON.stringify(
-                request.query.attributes
-            );
+            (params as Record<string, any>)['query.attributes'] =
+                JSON.stringify(request.query.attributes);
         }
         try {
             if (logger.isDebugEnabled()) {
