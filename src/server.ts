@@ -1,4 +1,4 @@
-import { createClient, JaegerClient } from './client';
+import { createClient, JaegerClient, MAX_REQUEST_TIMEOUT_MS } from './client';
 import * as logger from './logger';
 import { tools, Tool, ToolInput } from './tools/';
 
@@ -9,15 +9,41 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 const SERVER_NAME = 'jaeger-mcp-server';
 const { version: SERVER_VERSION } = require('../package.json');
 
+/**
+ * Parses and validates JAEGER_REQUEST_TIMEOUT_MS. Throws with a clear message if invalid.
+ * Valid: positive integer, optional max (MAX_REQUEST_TIMEOUT_MS). Omit env => undefined.
+ */
+function _parseRequestTimeoutMs(): number | undefined {
+    const raw = process.env.JAEGER_REQUEST_TIMEOUT_MS;
+    if (raw === undefined || raw === '') {
+        return undefined;
+    }
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) {
+        throw new Error(
+            `Invalid JAEGER_REQUEST_TIMEOUT_MS: must be a positive number. Got: ${JSON.stringify(raw)}`
+        );
+    }
+    if (parsed <= 0) {
+        throw new Error(
+            `Invalid JAEGER_REQUEST_TIMEOUT_MS: must be positive. Got: ${parsed}`
+        );
+    }
+    if (parsed > MAX_REQUEST_TIMEOUT_MS) {
+        throw new Error(
+            `Invalid JAEGER_REQUEST_TIMEOUT_MS: must be at most ${MAX_REQUEST_TIMEOUT_MS} (${MAX_REQUEST_TIMEOUT_MS / 1000}s). Got: ${parsed}`
+        );
+    }
+    return parsed;
+}
+
 function _createJaegerClient(): JaegerClient {
     if (!process.env.JAEGER_URL) {
         throw new Error(
             'No Jaeger URL (by "JAEGER_URL" environment variable) is specified'
         );
     }
-    const requestTimeoutMs = process.env.JAEGER_REQUEST_TIMEOUT_MS
-        ? parseInt(process.env.JAEGER_REQUEST_TIMEOUT_MS, 10)
-        : undefined;
+    const requestTimeoutMs = _parseRequestTimeoutMs();
     return createClient({
         url: process.env.JAEGER_URL!,
         port: process.env.JAEGER_PORT
