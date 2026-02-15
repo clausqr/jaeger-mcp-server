@@ -185,6 +185,8 @@ The script uses the same client as the MCP server. Optional env: `JAEGER_PROTOCO
                 "booleanAttribute": true,
             }
             ```
+                         When using HTTP (`JAEGER_PROTOCOL=HTTP`), the client sends attributes as the
+                         `query.attributes` query parameter (URL-encoded JSON map), matching the Jaeger API v3 format.
    - `startTimeMin`:
        - `Mandatory`: `true`
        - `Type`: `string`
