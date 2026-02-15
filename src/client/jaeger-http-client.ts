@@ -12,6 +12,7 @@ import {
 import {
     ClientConfigurations,
     DEFAULT_REQUEST_TIMEOUT_MS,
+    formatRequestTimedOutMessage,
     JaegerClient,
 } from './types';
 
@@ -178,9 +179,21 @@ export class JaegerHttpClient implements JaegerClient {
         });
     }
 
+    /**
+     * Maps HTTP/client errors to user-facing messages. Axios timeout (ECONNABORTED) becomes a
+     * timeout message; 404 returns empty result; others are rethrown.
+     */
     private _handleError<R>(err: any): R {
         if (err.status === HTTP_STATUS_CODE_NOT_FOUND) {
             return {} as R;
+        }
+        const isTimeout =
+            err.code === 'ECONNABORTED' ||
+            (err.message && String(err.message).toLowerCase().includes('timeout'));
+        if (isTimeout) {
+            throw new Error(
+                formatRequestTimedOutMessage(this.requestTimeoutMs)
+            );
         }
         throw err;
     }

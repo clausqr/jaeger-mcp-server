@@ -1,5 +1,5 @@
 import { JaegerClient } from '../client';
-import { GetTraceResponse } from '../domain';
+import { GetTraceResponse, validateTraceId } from '../domain';
 import { Tool } from './types';
 
 import { z } from 'zod';
@@ -47,6 +47,7 @@ export class GetTrace implements Tool {
         jaegerClient: JaegerClient,
         { traceId, startTime, endTime }: any
     ): Promise<string> {
+        validateTraceId(traceId);
         const response: GetTraceResponse = await jaegerClient.getTrace({
             traceId,
             startTime: startTime ? Date.parse(startTime) : undefined,
