@@ -108,6 +108,8 @@ like VS Code, Claude, Cursor, Windsurf Github Copilot via the `jaeger-mcp-server
                 "booleanAttribute": true,
             }
             ```
+                         When using HTTP (`JAEGER_PROTOCOL=HTTP`), the client sends attributes as the
+                         `query.attributes` query parameter (URL-encoded JSON map), matching the Jaeger API v3 format.
    - `startTimeMin`:
        - `Mandatory`: `true`
        - `Type`: `string`
